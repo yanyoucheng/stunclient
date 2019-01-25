@@ -100,8 +100,10 @@ void parse_message(char *buf, int len){
 	}
 	buf += 20;
 	len -= 20;
-	printf("len = %d\n", len);
-	if(len > 0){
+
+	while(len > 0){
+		printf("len = %d\n", len);
+		sleep(5);
 		printf("attribute type: ");
 		short int attribute_type = 0;
 		memcpy(&attribute_type, buf, 2);
@@ -180,10 +182,11 @@ void parse_message(char *buf, int len){
 	}
 }
 void print_ip(char *ip){
-	unsigned int num = 0;
+	int num = 0;
 	int count = 4;
 	while(count > 0) {
 		num = *ip;
+		num &= 0x000000FF;
 		printf("%d", num);
 		ip += 1;
 		count--;
