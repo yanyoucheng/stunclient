@@ -103,7 +103,6 @@ void parse_message(char *buf, int len){
 
 	while(len > 0){
 		printf("len = %d\n", len);
-		sleep(5);
 		printf("attribute type: ");
 		short int attribute_type = 0;
 		memcpy(&attribute_type, buf, 2);
@@ -166,9 +165,9 @@ void parse_message(char *buf, int len){
 			len -= sizeof(struct Xm_Attributes);
 			break;
 		case SERVER:
-			printf("SOURCE ADDRESS\n");
+			printf("SERVER ADDRESS\n");
 			struct Sr_Attributes sr;
-			memcpy(&sa, buf, sizeof(struct Sr_Attributes));
+			memcpy(&sr, buf, sizeof(struct Sr_Attributes));
 			printf("version:%s\n", sr.sv);
 			buf += sizeof(struct Sr_Attributes);
 			len -= sizeof(struct Sr_Attributes);

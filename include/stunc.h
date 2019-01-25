@@ -58,7 +58,7 @@ struct Xm_Attributes{
 struct Sr_Attributes{
 	short int attribute_type;
 	short int len;
-	char sv[4];
+	char sv[20];
 };
 struct StunRequest{
 	short int message_type;
