@@ -161,9 +161,7 @@ void parse_message(char *buf, int len){
 			memcpy(&xm, buf, sizeof(struct Xm_Attributes));
 			printf("pf:%d\n", ntohs(xm.pf));
 			printf("xport:%d\n", ntohs(xm.xport));
-			printf("port:%d\n", ntohs(xm.port));
 			print_ip(xm.xaddr);
-			print_ip(xm.addr);
 			buf += sizeof(struct Xm_Attributes);
 			len -= sizeof(struct Xm_Attributes);
 			break;

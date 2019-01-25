@@ -53,9 +53,7 @@ struct Xm_Attributes{
 	short int len;
 	short int pf;
 	short int xport;
-	short int port;
 	char xaddr[4];
-	char addr[4];
 };
 struct Sr_Attributes{
 	short int attribute_type;
