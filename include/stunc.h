@@ -21,11 +21,15 @@
 #define   XOR_MAPPED_ADDRESS    0x8020
 #define   SERVER				0x8022
 
+#define IP_CHANGED 4
+#define IP_NOT_CHANGED 0
+#define PORT_CHANGED 2
+#define PORT_NOT_CHANGED 0
+
 struct Attributes{
 	short int attribute_type;
 	short int len;
-	short int ipChanged;
-	short int portChanged;
+	int changed;
 };
 struct Ma_Attributes{
 	short int attribute_type;
@@ -70,9 +74,13 @@ struct StunResponse{
 	short int message_type;
 	short int len;
 	char id[16];
-	struct Attributes attr;
+	struct Ma_Attributes ma;
+	struct Sa_Attributes sa;
+	struct Ca_Attributes ca;
+	struct Xm_Attributes xm;
+	struct Sr_Attributes sr;
 };
-void parse_message(char *buf, int len);
+void parse_message(char* buf, int len);
 void print_ip(char *ip);
-#undef STUNC_H
+int build_request(struct StunRequest* req, int ipChanged, int portChanged);
 #endif

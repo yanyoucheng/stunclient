@@ -20,59 +20,116 @@
 #include <netdb.h>
 #include <netinet/tcp.h>
 
-
+#include "transid.h"
+#include "sock.h"
+#include "stunc.h"
 int main()
 {
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
-	int flag = 1;
-	struct addrinfo *hints = 0;
-	hints = (struct addrinfo*)malloc(sizeof(*hints));
-	hints->ai_socktype = SOCK_STREAM;
-	getaddrinfo("stun.ekiga.net", "3478", NULL, &hints);
-	char str[128] = {0};
-	for(; hints != NULL; hints = hints->ai_next) {
-		if(hints->ai_family ==  AF_INET6)
-		{
-			struct sockaddr_in6* addr = (struct sockaddr_in6*)hints->ai_addr;
-			inet_ntop(AF_INET6, (void*)&addr->sin6_addr, str, 128);
-			printf("ai_addr = %s\n", str);
-			printf("ai_family = %d\n", hints->ai_family);
-			printf("ai_socktype = %d\n", hints->ai_socktype);
-		}
-		else
-		{
-			struct sockaddr_in* addr = (struct sockaddr_in*)hints->ai_addr;
-			printf("ai_addr = %s\n", inet_ntoa(addr->sin_addr));
-			printf("ai_port = %d\n", ntohs(addr->sin_port));
-			printf("ai_family = %d\n", hints->ai_family);
-			printf("ai_socktype = %d\n", hints->ai_socktype);
-			if(hints->ai_socktype == SOCK_STREAM)
-				break;
-		}
-	}
-	struct StunRequest req;
-	req.message_type = htons(BindingRequest);
-	req.len = htons(8);
-	strcpy(req.id,"0123456789012345");
-	req.attr.attribute_type = htons(CHANGE_REQUEST);
-	req.attr.len = htons(4);
-	req.attr.ipChanged = htons(0);
-	req.attr.portChanged = htons(0);
-
-	int res = sendto(sock, &req, sizeof(struct StunRequest), 0, hints->ai_addr, hints->ai_addrlen);
-	printf("res=%d\n",res);
-	if(res < 0)
-		return -1;
+	set_timeout(sock);
+	//set_nonblock(sock);
+	int res = 0;
+	int len = sizeof(struct sockaddr_in);
 	char buf[1024];
-	memset(buf, 0, sizeof(buf));
-	res = recvfrom(sock, buf, sizeof(buf), 0, hints->ai_addr, &hints->ai_addrlen);
-	printf("res=%d\n",res);
-	if(res < 0)
+	struct sockaddr_in la;
+	struct sockaddr_in sv;
+	get_sockaddr("stun.ekiga.net", "3478", AF_INET, &sv);
+	struct StunRequest req;
+	struct StunResponse rsp;
+	res = connect(sock, &sv, len);
+	if(res < 0) {
+		perror("connect fail\n");
 		return -1;
+	}
+	res = getsockname(sock, &la, &len);
+	if(res < 0) {
+		perror("get local ip fail\n");
+		return -1;
+	}
+	printf("local_addr = %s\n", inet_ntoa(la.sin_addr));
+	build_request(&req, IP_NOT_CHANGED, PORT_NOT_CHANGED);
+	res = sendto(sock, &req, sizeof(struct StunRequest), 0, &sv, len);
+	if(res < 0) {
+		perror("send fail\n");
+		return -1;
+	}
+	memset(buf, 0, sizeof(buf));
+	res = recvfrom(sock, buf, sizeof(buf), 0, &sv, &len);
+	printf("res=%d\n",res);
+	if(res < 0) {
+		perror("recv fail\n");
+		return -1;
+	}
 	else if(res == 0)
 		close(sock);
 	else
 		parse_message(buf, res);
+	memcpy(&rsp, buf, res);
+	if(strcmp(rsp.id, req.id) == 0) {
+		if(strcmp(rsp.ma.addr, inet_ntoa(la.sin_addr)) == 0) {
+			printf("Not behind NAT.\n");
+		} else {
+			printf("Behind NAT type:");
+			build_request(&req, IP_CHANGED, PORT_CHANGED);
+			res = sendto(sock, &req, sizeof(struct StunRequest), 0, &sv, len);
+			if(res < 0) {
+				perror("send fail\n");
+				return -1;
+			}
+			memset(buf, 0, sizeof(buf));
+			res = recvfrom(sock, buf, sizeof(buf), 0, &sv, &len);
+			printf("res=%d\n",res);
+			if(res > 0) {
+				printf("Full Cone\n");
+				return 0;
+			}
+			else if(res == 0) {
+				close(sock);
+				return 0;
+			}
+
+			build_request(&req, IP_NOT_CHANGED, PORT_CHANGED);
+			res = sendto(sock, &req, sizeof(struct StunRequest), 0, &sv, len);
+			if(res < 0) {
+				perror("send fail\n");
+				return -1;
+			}
+			memset(buf, 0, sizeof(buf));
+			res = recvfrom(sock, buf, sizeof(buf), 0, &sv, &len);
+			printf("res=%d\n",res);
+			if(res > 0) {
+				printf("Restricted Cone\n");
+				//return 0;
+			}
+			else if(res == 0) {
+				close(sock);
+				return 0;
+			}
+
+			build_request(&req, IP_NOT_CHANGED, PORT_NOT_CHANGED);
+			res = sendto(sock, &req, sizeof(struct StunRequest), 0, &sv, len);
+			if(res < 0) {
+				perror("send fail\n");
+				return -1;
+			}
+			memset(buf, 0, sizeof(buf));
+			res = recvfrom(sock, buf, sizeof(buf), 0, &sv, &len);
+			printf("res=%d\n",res);
+			if(res > 0) {
+				printf("Port Restricted Cone\n");
+				//return 0;
+			}
+			else if(res == 0) {
+				close(sock);
+				return 0;
+			} else {
+				printf("Symmetric Cone\n");
+			}
+
+		}
+	} else {
+		printf("transaction id not match.\n");
+	}
 	return 0;
 }
 
@@ -191,4 +248,13 @@ void print_ip(char *ip){
 			printf(".");
 	}
 	printf("\n");
+}
+
+int build_request(struct StunRequest* req, int ipChanged, int portChanged) {
+	req->message_type = htons(BindingRequest);
+	req->len = htons(8);
+	get_transaction_id(req->id);
+	req->attr.attribute_type = htons(CHANGE_REQUEST);
+	req->attr.len = htons(4);
+	req->attr.changed = htonl(ipChanged+portChanged);
 }
